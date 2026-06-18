@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  /* ─── TOKENS ─── */
+  /* ─── TOKENS — DARK (default) ─── */
   :root {
     --ink:     #0F0D13;
     --surface: #17141E;
@@ -23,6 +23,24 @@
     --yellow:  #FACC15;
     --r: .75rem;
     --r-lg: 1.25rem;
+    --shadow: 0 2px 12px rgba(0,0,0,.4);
+  }
+
+  /* ─── TOKENS — LIGHT ─── */
+  body.light {
+    --ink:     #F5F2EE;
+    --surface: #FFFFFF;
+    --card:    #FAFAFA;
+    --border:  #E2DDD8;
+    --muted:   #9E9590;
+    --cream:   #1A1714;
+    --apricot: #D4600A;
+    --lilac:   #7B3FC7;
+    --aqua:    #0E8A7A;
+    --red:     #C0392B;
+    --green:   #1A7A3A;
+    --yellow:  #B8860B;
+    --shadow: 0 2px 12px rgba(0,0,0,.1);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -395,13 +413,146 @@
   .dot-yellow { background: var(--yellow); }
   .dot-red    { background: var(--red); }
 
+  /* ─── MOBILE NAV ─── */
+  .mobile-topbar {
+    display: none;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .mobile-logo { font-size: 13px; font-weight: 800; color: var(--apricot); letter-spacing:.06em; }
+  .mobile-actions { display: flex; gap: 8px; align-items: center; }
+  .mobile-menu-btn, .theme-btn {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--cream); padding: 6px 10px;
+    border-radius: var(--r); font-size: 16px;
+    cursor: pointer; line-height: 1;
+  }
+  .theme-btn { font-size: 14px; }
+
+  /* Bottom nav for mobile */
+  .bottom-nav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 8px 0 12px;
+    z-index: 100;
+    justify-content: space-around;
+  }
+  .bottom-nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 10px; font-weight: 600;
+    border-radius: var(--r);
+    transition: color .15s;
+    min-width: 48px;
+  }
+  .bottom-nav-item .bn-icon { font-size: 18px; }
+  .bottom-nav-item.active { color: var(--apricot); }
+
+  /* Drawer overlay */
+  .drawer-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 200;
+    backdrop-filter: blur(2px);
+  }
+  .drawer-overlay.open { display: block; }
+  .drawer {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    z-index: 201;
+    padding: 24px 0;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    overflow-y: auto;
+  }
+  .drawer.open { transform: translateX(0); }
+
+  /* Topbar theme toggle (desktop) */
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .theme-toggle-desk {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--cream); padding: 5px 12px;
+    border-radius: var(--r); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .theme-toggle-desk:hover { border-color: var(--apricot); }
+
   @media (max-width: 900px) {
     .sidebar { display: none; }
+    .mobile-topbar { display: flex; }
+    .bottom-nav { display: flex; }
+    .shell { flex-direction: column; }
+    .main { padding-bottom: 80px; }
+    .topbar { display: none; }
     .chart-grid-2 { grid-template-columns: 1fr; }
+    .content { padding: 16px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .insight-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
 <body>
+
+<!-- ─── MOBILE TOPBAR ─── -->
+<div class="mobile-topbar">
+  <div class="mobile-logo">⚡ Swipi Studio</div>
+  <div class="mobile-actions">
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
+    <button class="mobile-menu-btn" onclick="openDrawer()">☰</button>
+  </div>
+</div>
+
+<!-- ─── DRAWER OVERLAY ─── -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="logo" style="padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:8px">
+    <div class="logo-title">⚡ Swipi Studio</div>
+    <div class="logo-sub">Meta Ads Dashboard</div>
+  </div>
+  <div class="nav-section">Overview</div>
+  <div class="nav-item" onclick="nav('overview');closeDrawer()"><span class="nav-icon">📊</span> KPI Summary</div>
+  <div class="nav-item" onclick="nav('monthly');closeDrawer()"><span class="nav-icon">📈</span> Monthly Trends</div>
+  <div class="nav-section">Kreatif</div>
+  <div class="nav-item" onclick="nav('gallery');closeDrawer()"><span class="nav-icon">🖼️</span> Creative Gallery</div>
+  <div class="nav-item" onclick="nav('ads');closeDrawer()"><span class="nav-icon">📋</span> Ad Scorecard</div>
+  <div class="nav-section">Audiens</div>
+  <div class="nav-item" onclick="nav('audience');closeDrawer()"><span class="nav-icon">🎯</span> Audience Library</div>
+  <div class="nav-section">Insights</div>
+  <div class="nav-item" onclick="nav('learning');closeDrawer()"><span class="nav-icon">🧠</span> Learning Panel</div>
+  <div class="nav-section">Setup</div>
+  <div class="nav-item" onclick="nav('config');closeDrawer()"><span class="nav-icon">⚙️</span> Cara Pakai</div>
+  <div class="account-filter">
+    <label>Filter Akun</label>
+    <select id="drawerAccount" onchange="document.getElementById('globalAccount').value=this.value;applyAccountFilter()">
+      <option value="all">Semua Akun</option>
+    </select>
+  </div>
+</div>
+
+<!-- ─── BOTTOM NAV (Mobile) ─── -->
+<div class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-item active" onclick="nav('overview')" data-page="overview"><div class="bn-icon">📊</div>KPI</div>
+  <div class="bottom-nav-item" onclick="nav('monthly')" data-page="monthly"><div class="bn-icon">📈</div>Trend</div>
+  <div class="bottom-nav-item" onclick="nav('gallery')" data-page="gallery"><div class="bn-icon">🖼️</div>Creative</div>
+  <div class="bottom-nav-item" onclick="nav('audience')" data-page="audience"><div class="bn-icon">🎯</div>Audience</div>
+  <div class="bottom-nav-item" onclick="nav('learning')" data-page="learning"><div class="bn-icon">🧠</div>Learn</div>
+</div>
+
 <div class="shell">
 
 <!-- ─── SIDEBAR ─── -->
@@ -457,7 +608,10 @@
       <div class="topbar-title" id="pageTitle">KPI Summary</div>
       <div class="topbar-sub" id="pageRange">Semua akun · Data dari Google Sheets</div>
     </div>
-    <div class="topbar-badge" id="lastUpdated">⟳ Memuat data…</div>
+    <div class="topbar-actions">
+      <button class="theme-toggle-desk" onclick="toggleTheme()" id="themeToggleDesk">🌙 Dark Mode</button>
+      <div class="topbar-badge" id="lastUpdated">⟳ Memuat data…</div>
+    </div>
   </div>
 
   <div class="content" id="mainContent">
@@ -538,10 +692,13 @@ async function init() {
     // Populate account filter
     const accounts = [...new Set(DATA.ads.map(r => r.account_name))];
     const sel = document.getElementById('globalAccount');
+    const drawerSel = document.getElementById('drawerAccount');
     accounts.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a; opt.textContent = a;
       sel.appendChild(opt);
+      const opt2 = opt.cloneNode(true);
+      if (drawerSel) drawerSel.appendChild(opt2);
     });
 
     document.getElementById('lastUpdated').textContent = '✅ Data loaded';
@@ -761,8 +918,8 @@ function renderOverview() {
         }
       },
       scales: {
-        x: { title: { display: true, text: 'Spend (ribu Rp)', color: '#6B6480' }, grid: { color: '#2E2840' }, ticks: { color: '#6B6480' } },
-        y: { title: { display: true, text: 'Leads', color: '#6B6480' }, grid: { color: '#2E2840' }, ticks: { color: '#6B6480' } }
+        x: { title: { display: true, text: 'Spend (ribu Rp)', color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' }, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' } },
+        y: { title: { display: true, text: 'Leads', color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' }, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' } }
       }
     }
   });
@@ -879,9 +1036,9 @@ function renderMonthly() {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { labels: { color: '#FFF4E6', boxWidth: 10, font: { size: 11 } } } },
         scales: {
-          x: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', font: { size: 10 } } },
-          y: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', font: { size: 10 } },
-               title: { display: !!yLabel, text: yLabel, color: '#6B6480', font: { size: 10 } } }
+          x: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } } },
+          y: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } },
+               title: { display: !!yLabel, text: yLabel, color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } } }
         }
       }
     });
@@ -1197,8 +1354,8 @@ function renderAudience() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', font: { size: 10 } } },
-        y: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', callback: v => v+'%' } }
+        x: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } } },
+        y: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', callback: v => v+'%' } }
       }
     }
   });
@@ -1365,8 +1522,8 @@ function renderLearning() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid:{color:'#2E2840'}, ticks:{color:'#6B6480',font:{size:10}} },
-        y: { grid:{color:'#2E2840'}, ticks:{color:'#6B6480'} }
+        x: { grid:{color:getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840'}, ticks:{color:getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480',font:{size:10}} },
+        y: { grid:{color:getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840'}, ticks:{color:getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480'} }
       }
     }
   });
@@ -1473,11 +1630,71 @@ function renderConfig() {
 }
 
 // ═══════════════════════════════════════════
+//  THEME
+// ═══════════════════════════════════════════
+function toggleTheme() {
+  const body = document.body;
+  const isLight = body.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  updateThemeLabel(isLight);
+  // Re-render current page to pick up new chart colors
+  if (Object.keys(CHARTS).length) renderPage(currentPage);
+}
+
+function updateThemeLabel(isLight) {
+  const desk = document.getElementById('themeToggleDesk');
+  const mob  = document.getElementById('themeBtn');
+  if (desk) desk.textContent = isLight ? '🌑 Dark Mode' : '🌙 Light Mode';
+  if (mob)  mob.textContent  = isLight ? '🌑' : '🌙';
+}
+
+function applyStoredTheme() {
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light') {
+    document.body.classList.add('light');
+    updateThemeLabel(true);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  DRAWER (mobile)
+// ═══════════════════════════════════════════
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+// Sync drawer account filter options when main filter is populated
+const _origApplyFilter = applyAccountFilter;
+
+// ─── Patch nav to sync bottom-nav active state ───
+const _origNav = nav;
+function nav(page) {
+  currentPage = page;
+  // Sidebar
+  document.querySelectorAll('.sidebar .nav-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('onclick').includes(`'${page}'`));
+  });
+  // Drawer nav
+  document.querySelectorAll('.drawer .nav-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('onclick').includes(`'${page}'`));
+  });
+  // Bottom nav
+  document.querySelectorAll('.bottom-nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  renderPage(page);
+}
+
+// ═══════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════
+applyStoredTheme();
 init();
 </script>
 </body>
 </html>
-EOF
-echo "✅ Dashboard HTML selesai dibuat"

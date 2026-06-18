@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta Ads Dashboard — Agency</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ─── TOKENS ─── */
+  :root {
+    --ink:     #0F0D13;
+    --surface: #17141E;
+    --card:    #1F1B2A;
+    --border:  #2E2840;
+    --muted:   #6B6480;
+    --cream:   #FFF4E6;
+    --apricot: #FF8A3D;
+    --lilac:   #B368FF;
+    --aqua:    #6EE7D7;
+    --red:     #FF5C5C;
+    --green:   #4ADE80;
+    --yellow:  #FACC15;
+    --r: .75rem;
+    --r-lg: 1.25rem;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--ink);
+    color: var(--cream);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ─── LAYOUT ─── */
+  .shell { display: flex; min-height: 100vh; }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .logo {
+    padding: 0 20px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .logo-title { font-size: 13px; font-weight: 700; color: var(--apricot); letter-spacing: .08em; text-transform: uppercase; }
+  .logo-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .nav-section { padding: 12px 20px 4px; font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 20px;
+    font-size: 13px; font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all .15s;
+  }
+  .nav-item:hover { color: var(--cream); background: rgba(255,255,255,.03); }
+  .nav-item.active { color: var(--apricot); border-left-color: var(--apricot); background: rgba(255,138,61,.05); }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+
+  /* Account filter */
+  .account-filter {
+    margin: 16px 20px 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .account-filter label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 8px; }
+  .account-filter select {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--cream);
+    padding: 7px 10px;
+    border-radius: var(--r);
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+  }
+  .account-filter select:focus { border-color: var(--apricot); }
+
+  /* ─── MAIN ─── */
+  .main { flex: 1; overflow-y: auto; }
+
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-title { font-size: 16px; font-weight: 700; }
+  .topbar-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .topbar-badge {
+    background: rgba(255,138,61,.12);
+    color: var(--apricot);
+    border: 1px solid rgba(255,138,61,.25);
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .content { padding: 28px; }
+
+  /* ─── PAGE ─── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ─── KPI CARDS ─── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .kpi-card.apricot::before { background: var(--apricot); }
+  .kpi-card.lilac::before   { background: var(--lilac); }
+  .kpi-card.aqua::before    { background: var(--aqua); }
+  .kpi-card.green::before   { background: var(--green); }
+  .kpi-card.red::before     { background: var(--red); }
+  .kpi-card.yellow::before  { background: var(--yellow); }
+
+  .kpi-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+  .kpi-val { font-size: 26px; font-weight: 800; line-height: 1; }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .kpi-delta { font-size: 11px; font-weight: 600; margin-top: 4px; }
+  .kpi-delta.up { color: var(--green); }
+  .kpi-delta.down { color: var(--red); }
+
+  /* ─── SECTION HEADERS ─── */
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .section-title { font-size: 14px; font-weight: 700; }
+  .section-sub { font-size: 12px; color: var(--muted); }
+
+  /* ─── CHART CARD ─── */
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .chart-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .chart-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 240px; }
+
+  .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+
+  /* ─── CREATIVE GALLERY ─── */
+  .gallery-toolbar {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; align-items: center;
+  }
+  .filter-btn {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted); padding: 5px 14px;
+    border-radius: 99px; font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all .15s;
+  }
+  .filter-btn:hover { border-color: var(--apricot); color: var(--cream); }
+  .filter-btn.active { background: rgba(255,138,61,.15); border-color: var(--apricot); color: var(--apricot); }
+
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+
+  .creative-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    transition: transform .15s, border-color .15s;
+    cursor: default;
+  }
+  .creative-card:hover { transform: translateY(-2px); border-color: var(--muted); }
+
+  .creative-img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--surface); }
+  .creative-body { padding: 14px; }
+  .creative-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .creative-account { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; }
+
+  .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .badge {
+    padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .badge-format { background: rgba(179,104,255,.15); color: var(--lilac); }
+  .badge-pillar { background: rgba(110,231,215,.12); color: var(--aqua); }
+
+  .perf-score {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .perf-score.top    { background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.2); }
+  .perf-score.avg    { background: rgba(250,204,21,.08); border: 1px solid rgba(250,204,21,.2); }
+  .perf-score.low    { background: rgba(255,92,92,.08); border: 1px solid rgba(255,92,92,.2); }
+  .perf-label { font-weight: 700; }
+  .perf-label.top  { color: var(--green); }
+  .perf-label.avg  { color: var(--yellow); }
+  .perf-label.low  { color: var(--red); }
+
+  .metrics-mini { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .metric-mini { text-align: center; }
+  .metric-mini-val { font-size: 13px; font-weight: 800; }
+  .metric-mini-lbl { font-size: 9px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+
+  .hook-text {
+    font-size: 11px; color: var(--muted); font-style: italic;
+    padding: 8px; background: var(--surface); border-radius: var(--r);
+    border-left: 2px solid var(--apricot);
+    margin-top: 8px;
+  }
+
+  /* ─── TABLE ─── */
+  .table-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .table-head { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 10px; font-weight: 700; color: var(--muted);
+    letter-spacing: .08em; text-transform: uppercase;
+    background: rgba(255,255,255,.02);
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding: 11px 16px;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  .rank { font-size: 11px; font-weight: 800; color: var(--muted); }
+  .rank.gold { color: #FFD700; }
+  .rank.silver { color: #C0C0C0; }
+  .rank.bronze { color: #CD7F32; }
+
+  .verdict-pill {
+    padding: 2px 10px; border-radius: 99px; font-size: 10px; font-weight: 700;
+  }
+  .verdict-proven  { background: rgba(74,222,128,.1); color: var(--green); }
+  .verdict-testing { background: rgba(250,204,21,.1); color: var(--yellow); }
+  .verdict-weak    { background: rgba(255,92,92,.1); color: var(--red); }
+
+  .freq-bar { display: flex; align-items: center; gap: 6px; }
+  .freq-track { flex: 1; height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .freq-fill { height: 100%; border-radius: 99px; }
+
+  /* ─── LEARNING PANEL ─── */
+  .insight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .insight-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 18px;
+  }
+  .insight-icon { font-size: 22px; margin-bottom: 10px; }
+  .insight-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .insight-body { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .insight-highlight { color: var(--cream); font-weight: 600; }
+
+  .warning-card {
+    background: rgba(255,92,92,.06);
+    border: 1px solid rgba(255,92,92,.2);
+    border-radius: var(--r-lg);
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .warning-icon { font-size: 18px; }
+  .warning-title { font-size: 13px; font-weight: 700; color: var(--red); margin-bottom: 4px; }
+  .warning-body { font-size: 12px; color: var(--muted); }
+
+  /* ─── LOADING ─── */
+  .loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 300px; color: var(--muted);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--apricot);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── CONFIG PANEL ─── */
+  .config-section { margin-bottom: 28px; }
+  .config-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .config-field label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .config-field input, .config-field select {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--cream);
+    padding: 9px 12px;
+    border-radius: var(--r);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .config-field input:focus, .config-field select:focus { border-color: var(--apricot); }
+  .config-field input::placeholder { color: var(--muted); }
+
+  .config-help {
+    background: rgba(179,104,255,.06);
+    border: 1px solid rgba(179,104,255,.2);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .config-help strong { color: var(--lilac); }
+
+  .btn {
+    padding: 9px 20px; border-radius: var(--r);
+    font-size: 13px; font-weight: 700;
+    cursor: pointer; border: none; transition: all .15s;
+  }
+  .btn-primary { background: var(--apricot); color: var(--ink); }
+  .btn-primary:hover { opacity: .9; }
+  .btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--cream); }
+  .btn-ghost:hover { border-color: var(--apricot); }
+
+  .step-list { counter-reset: steps; list-style: none; }
+  .step-list li {
+    counter-increment: steps;
+    padding: 10px 0 10px 40px;
+    position: relative;
+    font-size: 13px; color: var(--muted);
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    line-height: 1.5;
+  }
+  .step-list li:last-child { border-bottom: none; }
+  .step-list li::before {
+    content: counter(steps);
+    position: absolute; left: 0;
+    width: 24px; height: 24px;
+    background: rgba(255,138,61,.12);
+    border: 1px solid rgba(255,138,61,.3);
+    border-radius: 50%;
+    font-size: 11px; font-weight: 800; color: var(--apricot);
+    display: flex; align-items: center; justify-content: center;
+    top: 10px;
+  }
+  .step-list li strong { color: var(--cream); }
+  .step-list li code {
+    background: var(--surface); padding: 1px 6px; border-radius: 4px;
+    font-size: 11px; color: var(--aqua); font-family: monospace;
+  }
+
+  /* ─── MISC ─── */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .empty { text-align: center; color: var(--muted); padding: 48px; font-size: 13px; }
+  .tag { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; background: var(--surface); color: var(--muted); }
+
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot-green  { background: var(--green); }
+  .dot-yellow { background: var(--yellow); }
+  .dot-red    { background: var(--red); }
+
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .chart-grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-title">⚡ Swipi Studio</div>
+    <div class="logo-sub">Meta Ads Dashboard</div>
+  </div>
+
+  <div class="nav-section">Overview</div>
+  <div class="nav-item active" onclick="nav('overview')">
+    <span class="nav-icon">📊</span> KPI Summary
+  </div>
+  <div class="nav-item" onclick="nav('monthly')">
+    <span class="nav-icon">📈</span> Monthly Trends
+  </div>
+
+  <div class="nav-section">Kreatif</div>
+  <div class="nav-item" onclick="nav('gallery')">
+    <span class="nav-icon">🖼️</span> Creative Gallery
+  </div>
+  <div class="nav-item" onclick="nav('ads')">
+    <span class="nav-icon">📋</span> Ad Scorecard
+  </div>
+
+  <div class="nav-section">Audiens</div>
+  <div class="nav-item" onclick="nav('audience')">
+    <span class="nav-icon">🎯</span> Audience Library
+  </div>
+
+  <div class="nav-section">Insights</div>
+  <div class="nav-item" onclick="nav('learning')">
+    <span class="nav-icon">🧠</span> Learning Panel
+  </div>
+
+  <div class="nav-section">Setup</div>
+  <div class="nav-item" onclick="nav('config')">
+    <span class="nav-icon">⚙️</span> Cara Pakai
+  </div>
+
+  <div class="account-filter">
+    <label>Filter Akun</label>
+    <select id="globalAccount" onchange="applyAccountFilter()">
+      <option value="all">Semua Akun</option>
+    </select>
+  </div>
+</aside>
+
+<!-- ─── MAIN ─── -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="pageTitle">KPI Summary</div>
+      <div class="topbar-sub" id="pageRange">Semua akun · Data dari Google Sheets</div>
+    </div>
+    <div class="topbar-badge" id="lastUpdated">⟳ Memuat data…</div>
+  </div>
+
+  <div class="content" id="mainContent">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div>Memuat data dashboard…</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  CONFIG — ganti URL ini dengan Google Sheets CSV
+// ═══════════════════════════════════════════
+const CONFIG = {
+  adsUrl:     'ads_performance.csv',
+  contentUrl: 'content_library.csv',
+  monthlyUrl: 'account_monthly.csv',
+};
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let DATA = { ads: [], content: [], monthly: [] };
+let CHARTS = {};
+let currentAccount = 'all';
+let currentPage = 'overview';
+
+// ═══════════════════════════════════════════
+//  LOAD DATA
+// ═══════════════════════════════════════════
+async function loadCSV(url) {
+  return new Promise((res, rej) => {
+    Papa.parse(url, {
+      download: true, header: true, skipEmptyLines: true,
+      complete: r => res(r.data),
+      error: e => rej(e)
+    });
+  });
+}
+
+async function init() {
+  try {
+    const [ads, content, monthly] = await Promise.all([
+      loadCSV(CONFIG.adsUrl),
+      loadCSV(CONFIG.contentUrl),
+      loadCSV(CONFIG.monthlyUrl)
+    ]);
+
+    DATA.ads     = ads.map(r => ({...r,
+      spend:       +r.spend || 0,
+      impressions: +r.impressions || 0,
+      reach:       +r.reach || 0,
+      clicks:      +r.clicks || 0,
+      ctr:         +r.ctr || 0,
+      cpc:         +r.cpc || 0,
+      cpm:         +r.cpm || 0,
+      leads:       +r.leads || 0,
+      cpl:         +r.cpl || 0,
+      roas:        +r.roas || 0,
+      frequency:   +r.frequency || 0,
+    }));
+    DATA.content = content;
+    DATA.monthly = monthly.map(r => ({...r,
+      reach:         +r.reach || 0,
+      impressions:   +r.impressions || 0,
+      profile_visits:+r.profile_visits || 0,
+      link_clicks:   +r.link_clicks || 0,
+      interactions:  +r.interactions || 0,
+      follows:       +r.follows || 0,
+      ad_spend:      +r.ad_spend || 0,
+      total_posts:   +r.total_posts || 0,
+      total_stories: +r.total_stories || 0,
+      total_reels:   +r.total_reels || 0,
+    }));
+
+    // Populate account filter
+    const accounts = [...new Set(DATA.ads.map(r => r.account_name))];
+    const sel = document.getElementById('globalAccount');
+    accounts.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      sel.appendChild(opt);
+    });
+
+    document.getElementById('lastUpdated').textContent = '✅ Data loaded';
+    renderPage('overview');
+
+  } catch(e) {
+    document.getElementById('mainContent').innerHTML =
+      `<div class="empty">⚠️ Gagal memuat CSV.<br><small style="color:var(--red)">${e}</small><br><br>
+       Pastikan file CSV ada di folder yang sama, atau atur URL Google Sheets di CONFIG.</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+function fmtIDR(n) {
+  if (n >= 1000000) return 'Rp' + (n/1000000).toFixed(1) + 'jt';
+  if (n >= 1000)    return 'Rp' + (n/1000).toFixed(0) + 'rb';
+  return 'Rp' + n;
+}
+function fmtNum(n, dec=0) { return (+n).toLocaleString('id-ID', {minimumFractionDigits:dec,maximumFractionDigits:dec}); }
+function fmtPct(n) { return (+n).toFixed(2) + '%'; }
+function pct(a,b) { return b ? ((a-b)/b*100).toFixed(1) : '0'; }
+
+function filteredAds() {
+  return currentAccount === 'all' ? DATA.ads : DATA.ads.filter(r => r.account_name === currentAccount);
+}
+function filteredMonthly() {
+  return currentAccount === 'all' ? DATA.monthly : DATA.monthly.filter(r => r.account_name === currentAccount);
+}
+
+function sumField(arr, field) { return arr.reduce((s,r) => s + (r[field]||0), 0); }
+function avgField(arr, field) { return arr.length ? sumField(arr,field)/arr.length : 0; }
+function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+// ═══════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════
+function nav(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('onclick').includes(`'${page}'`));
+  });
+  renderPage(page);
+}
+
+function applyAccountFilter() {
+  currentAccount = document.getElementById('globalAccount').value;
+  const sub = currentAccount === 'all' ? 'Semua akun' : currentAccount;
+  document.getElementById('pageRange').textContent = sub + ' · Data dari Google Sheets';
+  renderPage(currentPage);
+}
+
+function renderPage(page) {
+  const titles = {
+    overview: 'KPI Summary', monthly: 'Monthly Trends',
+    gallery: 'Creative Gallery', ads: 'Ad Scorecard',
+    audience: 'Audience Library', learning: 'Learning Panel', config: 'Cara Pakai'
+  };
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+  Object.values(CHARTS).forEach(c => c.destroy());
+  CHARTS = {};
+
+  const pages = {
+    overview: renderOverview,
+    monthly:  renderMonthly,
+    gallery:  renderGallery,
+    ads:      renderAds,
+    audience: renderAudience,
+    learning: renderLearning,
+    config:   renderConfig,
+  };
+  if (pages[page]) pages[page]();
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: OVERVIEW
+// ═══════════════════════════════════════════
+function renderOverview() {
+  const ads     = filteredAds();
+  const monthly = filteredMonthly();
+  const accounts = [...new Set(ads.map(r => r.account_name))];
+
+  const totalSpend  = sumField(ads, 'spend');
+  const totalLeads  = sumField(ads, 'leads');
+  const avgCTR      = avgField(ads, 'ctr');
+  const avgCPL      = totalLeads ? totalSpend / totalLeads : 0;
+  const totalImpr   = sumField(ads, 'impressions');
+  const totalReach  = sumField(monthly, 'reach');
+  const totalFollows= sumField(monthly, 'follows');
+  const avgRoas     = avgField(ads.filter(r=>r.roas>0), 'roas');
+
+  // Best ad
+  const byLeads = [...ads].sort((a,b) => b.leads - a.leads);
+  const bestAd  = byLeads[0] || {};
+
+  // Frequency warning
+  const freqWarn = ads.filter(r => r.frequency > 2.5);
+
+  document.getElementById('mainContent').innerHTML = `
+  <div class="kpi-grid">
+    <div class="kpi-card apricot">
+      <div class="kpi-label">Total Ad Spend</div>
+      <div class="kpi-val">${fmtIDR(totalSpend)}</div>
+      <div class="kpi-sub">${accounts.length} akun aktif</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Total Leads</div>
+      <div class="kpi-val">${fmtNum(totalLeads)}</div>
+      <div class="kpi-sub">Avg CPL ${fmtIDR(Math.round(avgCPL))}</div>
+    </div>
+    <div class="kpi-card lilac">
+      <div class="kpi-label">Avg CTR</div>
+      <div class="kpi-val">${fmtPct(avgCTR)}</div>
+      <div class="kpi-sub">Benchmark &gt;1.5%</div>
+    </div>
+    <div class="kpi-card aqua">
+      <div class="kpi-label">Total Reach</div>
+      <div class="kpi-val">${fmtNum(totalReach)}</div>
+      <div class="kpi-sub">IG + Paid combined</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">Avg ROAS</div>
+      <div class="kpi-val">${avgRoas ? fmtNum(avgRoas,2)+'x' : 'N/A'}</div>
+      <div class="kpi-sub">Paid campaigns</div>
+    </div>
+    <div class="kpi-card ${freqWarn.length > 0 ? 'red' : 'green'}">
+      <div class="kpi-label">Freq Warning</div>
+      <div class="kpi-val">${freqWarn.length}</div>
+      <div class="kpi-sub">${freqWarn.length ? 'Iklan perlu refresh!' : 'Semua aman'}</div>
+    </div>
+    <div class="kpi-card lilac">
+      <div class="kpi-label">Total Follows</div>
+      <div class="kpi-val">${fmtNum(totalFollows)}</div>
+      <div class="kpi-sub">Organic growth</div>
+    </div>
+    <div class="kpi-card apricot">
+      <div class="kpi-label">Total Impressi</div>
+      <div class="kpi-val">${fmtNum(totalImpr)}</div>
+      <div class="kpi-sub">Paid impressions</div>
+    </div>
+  </div>
+
+  ${freqWarn.length ? `
+  <div class="warning-card">
+    <div class="warning-icon">⚠️</div>
+    <div>
+      <div class="warning-title">Frekuensi Warning — ${freqWarn.length} iklan perlu refresh</div>
+      <div class="warning-body">${freqWarn.map(r=>`<strong>${r.ad_name}</strong> (${r.account_name}) — freq ${r.frequency}`).join(' · ')}</div>
+    </div>
+  </div>` : ''}
+
+  <div class="section-head">
+    <div>
+      <div class="section-title">Top Ad per Akun</div>
+      <div class="section-sub">Berdasarkan jumlah leads terbanyak</div>
+    </div>
+  </div>
+  <div id="topAdsGrid" class="chart-grid-2"></div>
+
+  <div class="chart-card">
+    <div class="chart-title">Spend vs Leads — semua iklan</div>
+    <div class="chart-sub">Setiap titik = satu campaign entry. Semakin kanan & atas = makin efisien.</div>
+    <div class="chart-wrap"><canvas id="scatterChart"></canvas></div>
+  </div>
+  `;
+
+  // Top ads per account
+  const topAdsContainer = document.getElementById('topAdsGrid');
+  accounts.forEach(acc => {
+    const accAds = ads.filter(r => r.account_name === acc);
+    const top = [...accAds].sort((a,b) => b.leads - a.leads)[0];
+    if (!top) return;
+    const content = DATA.content.find(c => c.ad_id === top.ad_id) || {};
+    const imgUrl = content.image_url || top.image_url || 'https://placehold.co/200x200/1F1B2A/6B6480?text=No+Image';
+    const score = top.ctr > 2.5 ? 'top' : top.ctr > 1.5 ? 'avg' : 'low';
+    const scoreLabel = top.ctr > 2.5 ? '🟢 Top Performer' : top.ctr > 1.5 ? '🟡 Average' : '🔴 Underperform';
+
+    topAdsContainer.innerHTML += `
+    <div class="chart-card" style="display:flex;gap:16px;align-items:flex-start;padding:16px">
+      <img src="${imgUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.src='https://placehold.co/80x80/1F1B2A/6B6480?text=IMG'">
+      <div style="flex:1">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">${acc}</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">${top.ad_name}</div>
+        <div class="perf-score ${score}"><span class="perf-label ${score}">${scoreLabel}</span></div>
+        <div class="metrics-mini" style="margin-top:8px">
+          <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${fmtPct(top.ctr)}</div><div class="metric-mini-lbl">CTR</div></div>
+          <div class="metric-mini"><div class="metric-mini-val">${fmtNum(top.leads)}</div><div class="metric-mini-lbl">Leads</div></div>
+          <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(Math.round(top.cpl))}</div><div class="metric-mini-lbl">CPL</div></div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  // Scatter chart
+  const scatterData = ads.map(r => ({x: r.spend/1000, y: r.leads, label: r.ad_name}));
+  const ctx = document.getElementById('scatterChart').getContext('2d');
+  CHARTS.scatter = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Spend vs Leads',
+        data: scatterData,
+        backgroundColor: 'rgba(255,138,61,.6)',
+        pointRadius: 7,
+        pointHoverRadius: 9,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${scatterData[ctx.dataIndex]?.label}: Spend Rp${ctx.parsed.x}rb, Leads ${ctx.parsed.y}`
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Spend (ribu Rp)', color: '#6B6480' }, grid: { color: '#2E2840' }, ticks: { color: '#6B6480' } },
+        y: { title: { display: true, text: 'Leads', color: '#6B6480' }, grid: { color: '#2E2840' }, ticks: { color: '#6B6480' } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: MONTHLY TRENDS
+// ═══════════════════════════════════════════
+function renderMonthly() {
+  const monthly = filteredMonthly();
+  const months  = [...new Set(monthly.map(r => r.month))].sort();
+  const accounts = [...new Set(monthly.map(r => r.account_name))];
+
+  const COLORS = ['#FF8A3D','#B368FF','#6EE7D7','#FACC15','#FF5C5C','#4ADE80'];
+
+  function buildDatasets(field) {
+    return accounts.map((acc, i) => {
+      const data = months.map(m => {
+        const rows = monthly.filter(r => r.account_name === acc && r.month === m);
+        return rows.length ? rows.reduce((s,r) => s + (r[field]||0), 0) : null;
+      });
+      return {
+        label: acc, data,
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + '22',
+        tension: .4, fill: false, pointRadius: 4,
+      };
+    });
+  }
+
+  // Account health metrics (latest month)
+  const latestMonth = months[months.length - 1];
+  const latestRows  = monthly.filter(r => r.month === latestMonth);
+  let healthHTML = '';
+  latestRows.forEach(r => {
+    const profileRate = r.reach ? (r.profile_visits / r.reach * 100).toFixed(2) : 0;
+    const followRate  = r.profile_visits ? (r.follows / r.profile_visits * 100).toFixed(2) : 0;
+    const linkRate    = r.profile_visits ? (r.link_clicks / r.profile_visits * 100).toFixed(2) : 0;
+    const cpFollow    = r.follows ? Math.round(r.ad_spend / r.follows) : 0;
+
+    healthHTML += `
+    <div class="chart-card" style="padding:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--apricot);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">${r.account_name} · ${r.month}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="kpi-card aqua" style="padding:12px">
+          <div class="kpi-label">Profile Visit Rate</div>
+          <div class="kpi-val" style="font-size:20px">${profileRate}%</div>
+          <div class="kpi-sub">${fmtNum(r.profile_visits)} visits</div>
+        </div>
+        <div class="kpi-card green" style="padding:12px">
+          <div class="kpi-label">Follow Rate</div>
+          <div class="kpi-val" style="font-size:20px">${followRate}%</div>
+          <div class="kpi-sub">dari profile visits</div>
+        </div>
+        <div class="kpi-card lilac" style="padding:12px">
+          <div class="kpi-label">Link Click Rate</div>
+          <div class="kpi-val" style="font-size:20px">${linkRate}%</div>
+          <div class="kpi-sub">dari profile visits</div>
+        </div>
+        <div class="kpi-card apricot" style="padding:12px">
+          <div class="kpi-label">Cost per Follow</div>
+          <div class="kpi-val" style="font-size:20px">${fmtIDR(cpFollow)}</div>
+          <div class="kpi-sub">${fmtNum(r.follows)} new follows</div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('mainContent').innerHTML = `
+  <div class="section-head">
+    <div class="section-title">Account Health — ${latestMonth}</div>
+  </div>
+  <div class="chart-grid-2" style="margin-bottom:20px">${healthHTML}</div>
+
+  <div class="chart-card">
+    <div class="chart-title">Trend Reach Organik</div>
+    <div class="chart-sub">Pertumbuhan reach per bulan per akun</div>
+    <div class="chart-wrap"><canvas id="reachChart"></canvas></div>
+  </div>
+
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <div class="chart-title">Followers Growth</div>
+      <div class="chart-sub">New follows per bulan</div>
+      <div class="chart-wrap"><canvas id="followsChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Ad Spend Trend</div>
+      <div class="chart-sub">Monthly spend per akun</div>
+      <div class="chart-wrap"><canvas id="spendChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <div class="chart-title">Interactions per Post</div>
+      <div class="chart-sub">Rata-rata engagement per konten</div>
+      <div class="chart-wrap"><canvas id="engChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Profile Visits Trend</div>
+      <div class="chart-sub">Berapa orang yang intip profil</div>
+      <div class="chart-wrap"><canvas id="profileChart"></canvas></div>
+    </div>
+  </div>
+  `;
+
+  function makeChart(id, datasets, yLabel) {
+    const ctx = document.getElementById(id).getContext('2d');
+    CHARTS[id] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: months, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#FFF4E6', boxWidth: 10, font: { size: 11 } } } },
+        scales: {
+          x: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', font: { size: 10 } } },
+          y: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', font: { size: 10 } },
+               title: { display: !!yLabel, text: yLabel, color: '#6B6480', font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  makeChart('reachChart', buildDatasets('reach'));
+  makeChart('followsChart', buildDatasets('follows'));
+  makeChart('spendChart', buildDatasets('ad_spend'), 'IDR');
+
+  // Interactions per post
+  const engDatasets = accounts.map((acc, i) => ({
+    label: acc,
+    data: months.map(m => {
+      const rows = monthly.filter(r => r.account_name === acc && r.month === m);
+      if (!rows.length) return null;
+      const r = rows[0];
+      return r.total_posts ? Math.round(r.interactions / r.total_posts) : 0;
+    }),
+    borderColor: COLORS[i % COLORS.length],
+    backgroundColor: COLORS[i % COLORS.length] + '22',
+    tension: .4, fill: false, pointRadius: 4,
+  }));
+  makeChart('engChart', engDatasets);
+  makeChart('profileChart', buildDatasets('profile_visits'));
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: CREATIVE GALLERY
+// ═══════════════════════════════════════════
+function renderGallery() {
+  let filterFormat  = 'all';
+  let filterPillar  = 'all';
+  let filterAccount = 'all';
+  let filterScore   = 'all';
+
+  const formats  = [...new Set(DATA.content.map(r => r.format))];
+  const pillars  = [...new Set(DATA.content.map(r => r.content_pillar))];
+  const accounts = [...new Set(DATA.content.map(r => r.account_name))];
+
+  function getAdMetrics(adId) {
+    const rows = DATA.ads.filter(r => r.ad_id === adId);
+    if (!rows.length) return null;
+    const spend = sumField(rows,'spend'), leads = sumField(rows,'leads'),
+          impr  = sumField(rows,'impressions'), clicks = sumField(rows,'clicks');
+    return {
+      spend, leads,
+      ctr:  impr  ? (clicks/impr*100).toFixed(2) : 0,
+      cpl:  leads ? Math.round(spend/leads) : 0,
+      roas: avgField(rows.filter(r=>r.roas>0),'roas').toFixed(2),
+    };
+  }
+
+  function scoreClass(m) {
+    if (!m) return 'avg';
+    if (m.ctr > 2.5 || m.leads > 10) return 'top';
+    if (m.ctr < 1.0 && m.leads < 3)  return 'low';
+    return 'avg';
+  }
+
+  function draw() {
+    let items = DATA.content
+      .filter(r => filterAccount==='all' || r.account_name===filterAccount)
+      .filter(r => filterFormat==='all'  || r.format===filterFormat)
+      .filter(r => filterPillar==='all'  || r.content_pillar===filterPillar);
+
+    if (filterScore !== 'all') {
+      items = items.filter(r => scoreClass(getAdMetrics(r.ad_id)) === filterScore);
+    }
+
+    const grid = document.getElementById('galleryGrid');
+    if (!items.length) { grid.innerHTML = '<div class="empty">Tidak ada creative yang cocok dengan filter ini.</div>'; return; }
+
+    grid.innerHTML = items.map(c => {
+      const m = getAdMetrics(c.ad_id);
+      const sc = scoreClass(m);
+      const scoreLabel = sc==='top'?'🟢 Top Performer':sc==='low'?'🔴 Underperform':'🟡 Average';
+
+      return `
+      <div class="creative-card">
+        <img class="creative-img" src="${c.image_url}" alt="${c.creative_name}"
+             onerror="this.src='https://placehold.co/400x400/1F1B2A/6B6480?text=No+Image'">
+        <div class="creative-body">
+          <div class="creative-name">${c.creative_name}</div>
+          <div class="creative-account">${c.account_name}</div>
+          <div class="badge-row">
+            <span class="badge badge-format">${c.format}</span>
+            <span class="badge badge-pillar">${c.content_pillar}</span>
+          </div>
+          <div class="perf-score ${sc}">
+            <span class="perf-label ${sc}">${scoreLabel}</span>
+            <span style="font-size:10px;color:var(--muted)">${c.visual_style}</span>
+          </div>
+          ${m ? `
+          <div class="metrics-mini">
+            <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${m.ctr}%</div><div class="metric-mini-lbl">CTR</div></div>
+            <div class="metric-mini"><div class="metric-mini-val">${m.leads}</div><div class="metric-mini-lbl">Leads</div></div>
+            <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(m.cpl)}</div><div class="metric-mini-lbl">CPL</div></div>
+          </div>` : '<div style="font-size:11px;color:var(--muted);margin-top:6px">Belum ada data ads</div>'}
+          <div class="hook-text">"${c.hook_text}"</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('mainContent').innerHTML = `
+  <div class="gallery-toolbar">
+    <span style="font-size:12px;color:var(--muted);margin-right:4px">Akun:</span>
+    <button class="filter-btn active" onclick="setGFilter('account','all',this)">Semua</button>
+    ${accounts.map(a => `<button class="filter-btn" onclick="setGFilter('account','${a}',this)">${a}</button>`).join('')}
+    <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+    <span style="font-size:12px;color:var(--muted);margin-right:4px">Format:</span>
+    <button class="filter-btn active" onclick="setGFilter('format','all',this)">Semua</button>
+    ${formats.map(f => `<button class="filter-btn" onclick="setGFilter('format','${f}',this)">${f}</button>`).join('')}
+    <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+    <span style="font-size:12px;color:var(--muted);margin-right:4px">Score:</span>
+    <button class="filter-btn active" onclick="setGFilter('score','all',this)">Semua</button>
+    <button class="filter-btn" onclick="setGFilter('score','top',this)">🟢 Top</button>
+    <button class="filter-btn" onclick="setGFilter('score','avg',this)">🟡 Average</button>
+    <button class="filter-btn" onclick="setGFilter('score','low',this)">🔴 Low</button>
+  </div>
+  <div id="galleryGrid" class="gallery-grid"></div>`;
+
+  window.setGFilter = (type, val, btn) => {
+    if (type==='account') { filterAccount=val; document.querySelectorAll('.gallery-toolbar .filter-btn').forEach((b,i) => { if(i<=accounts.length) b.classList.remove('active'); }); }
+    if (type==='format')  { filterFormat=val; }
+    if (type==='score')   { filterScore=val; }
+    btn.closest('.gallery-toolbar').querySelectorAll(`[onclick*="setGFilter('${type}'"]`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    draw();
+  };
+  draw();
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: AD SCORECARD
+// ═══════════════════════════════════════════
+function renderAds() {
+  const ads = filteredAds();
+
+  // Aggregate by ad_id
+  const byAd = {};
+  ads.forEach(r => {
+    if (!byAd[r.ad_id]) byAd[r.ad_id] = { ...r, _rows: [] };
+    byAd[r.ad_id]._rows.push(r);
+    byAd[r.ad_id].spend       = (byAd[r.ad_id].spend||0) + r.spend;
+    byAd[r.ad_id].impressions = (byAd[r.ad_id].impressions||0) + r.impressions;
+    byAd[r.ad_id].clicks      = (byAd[r.ad_id].clicks||0) + r.clicks;
+    byAd[r.ad_id].leads       = (byAd[r.ad_id].leads||0) + r.leads;
+  });
+
+  const adList = Object.values(byAd).map(r => ({
+    ...r,
+    ctr: r.impressions ? (r.clicks/r.impressions*100) : 0,
+    cpl: r.leads ? r.spend/r.leads : 0,
+    cpm: r.impressions ? (r.spend/r.impressions*1000) : 0,
+    avgFreq: avgField(r._rows, 'frequency'),
+  })).sort((a,b) => b.leads - a.leads);
+
+  function scoreOf(r) {
+    if (r.ctr > 2.5 || r.leads > 10) return 'top';
+    if (r.ctr < 1.0 && r.leads < 3) return 'low';
+    return 'avg';
+  }
+
+  const rows = adList.map((r, i) => {
+    const sc = scoreOf(r);
+    const rankCls = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+    const freqPct = Math.min(r.avgFreq/4*100, 100);
+    const freqColor = r.avgFreq > 2.5 ? 'var(--red)' : r.avgFreq > 1.8 ? 'var(--yellow)' : 'var(--green)';
+    const c = DATA.content.find(c => c.ad_id === r.ad_id) || {};
+
+    return `<tr>
+      <td><span class="rank ${rankCls}">#${i+1}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="${c.image_url||r.image_url||''}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.src='https://placehold.co/36x36/1F1B2A/6B6480?text=?'">
+          <div>
+            <div style="font-weight:600;font-size:12px">${r.ad_name}</div>
+            <div style="font-size:10px;color:var(--muted)">${r.account_name}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="verdict-pill verdict-${sc==='top'?'proven':sc==='low'?'weak':'testing'}">${sc==='top'?'✅ Top':sc==='low'?'❌ Weak':'⚡ Testing'}</span></td>
+      <td style="color:var(--apricot);font-weight:700">${r.ctr.toFixed(2)}%</td>
+      <td>${fmtNum(r.leads)}</td>
+      <td>${r.leads ? fmtIDR(Math.round(r.cpl)) : '—'}</td>
+      <td>${fmtIDR(Math.round(r.cpm))}</td>
+      <td>${fmtIDR(r.spend)}</td>
+      <td>
+        <div class="freq-bar">
+          <div class="freq-track"><div class="freq-fill" style="width:${freqPct}%;background:${freqColor}"></div></div>
+          <span style="font-size:11px;color:${freqColor};font-weight:700;width:28px">${r.avgFreq.toFixed(1)}</span>
+        </div>
+      </td>
+      <td><span class="tag">${c.format||r.format||'—'}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('mainContent').innerHTML = `
+  <div class="table-card">
+    <div class="table-head">
+      <div class="section-title">Ad Scorecard</div>
+      <div class="section-sub" style="font-size:12px;color:var(--muted);margin-top:2px">Ranking semua iklan · sorted by leads</div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Creative</th><th>Status</th><th>CTR</th>
+          <th>Leads</th><th>CPL</th><th>CPM</th><th>Spend</th>
+          <th>Frekuensi</th><th>Format</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: AUDIENCE LIBRARY
+// ═══════════════════════════════════════════
+function renderAudience() {
+  const ads = filteredAds();
+
+  // Parse audiences from ad_set_name
+  const byAudience = {};
+  ads.forEach(r => {
+    const key = r.ad_set_name || 'Unknown';
+    if (!byAudience[key]) byAudience[key] = {
+      name: key, accounts: new Set(), spend:0, leads:0,
+      impressions:0, clicks:0, _rows:[]
+    };
+    byAudience[key].accounts.add(r.account_name);
+    byAudience[key].spend       += r.spend;
+    byAudience[key].leads       += r.leads;
+    byAudience[key].impressions += r.impressions;
+    byAudience[key].clicks      += r.clicks;
+    byAudience[key]._rows.push(r);
+  });
+
+  const audiences = Object.values(byAudience).map(a => ({
+    ...a,
+    ctr: a.impressions ? (a.clicks/a.impressions*100) : 0,
+    cpl: a.leads ? a.spend/a.leads : 0,
+    accounts: [...a.accounts],
+  })).sort((a,b) => {
+    if (!a.leads && !b.leads) return b.ctr - a.ctr;
+    return b.leads - a.leads;
+  });
+
+  function verdictOf(a) {
+    if (a.leads > 10 || a.ctr > 2.5) return {cls:'proven', label:'✅ Proven'};
+    if (a.leads > 0  || a.ctr > 1.5) return {cls:'testing', label:'⚡ Testing'};
+    return {cls:'weak', label:'❌ Weak'};
+  }
+
+  const rows = audiences.map((a, i) => {
+    const v = verdictOf(a);
+    const rankCls = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+    return `<tr>
+      <td><span class="rank ${rankCls}">#${i+1}</span></td>
+      <td>
+        <div style="font-weight:600;font-size:12px">${a.name}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${a.accounts.join(', ')}</div>
+      </td>
+      <td><span class="verdict-pill verdict-${v.cls}">${v.label}</span></td>
+      <td style="color:var(--apricot);font-weight:700">${a.ctr.toFixed(2)}%</td>
+      <td>${fmtNum(a.leads)}</td>
+      <td>${a.leads ? fmtIDR(Math.round(a.cpl)) : '—'}</td>
+      <td>${fmtIDR(a.spend)}</td>
+      <td>${a.accounts.length}</td>
+    </tr>`;
+  }).join('');
+
+  // Audience bar chart — top 5 by CTR
+  const top5 = [...audiences].sort((a,b) => b.ctr - a.ctr).slice(0,5);
+
+  document.getElementById('mainContent').innerHTML = `
+  <div class="chart-card">
+    <div class="chart-title">Top 5 Audience — CTR</div>
+    <div class="chart-sub">Audiens dengan click-through rate tertinggi</div>
+    <div class="chart-wrap"><canvas id="audienceBar"></canvas></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-head">
+      <div class="section-title">Audience Library</div>
+      <div class="section-sub" style="font-size:12px;color:var(--muted);margin-top:2px">Semua audiens yang pernah dijalankan di semua akun</div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Audience</th><th>Verdict</th><th>CTR</th>
+          <th>Leads</th><th>CPL</th><th>Total Spend</th><th>Akun</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+
+  const ctx = document.getElementById('audienceBar').getContext('2d');
+  CHARTS.audienceBar = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top5.map(a => a.name.length>30 ? a.name.slice(0,28)+'…' : a.name),
+      datasets: [{
+        label: 'CTR (%)',
+        data: top5.map(a => a.ctr.toFixed(2)),
+        backgroundColor: ['#FF8A3D','#B368FF','#6EE7D7','#FACC15','#4ADE80'],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', font: { size: 10 } } },
+        y: { grid: { color: '#2E2840' }, ticks: { color: '#6B6480', callback: v => v+'%' } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: LEARNING PANEL
+// ═══════════════════════════════════════════
+function renderLearning() {
+  const ads = filteredAds();
+
+  // Format performance
+  const byFormat = {};
+  DATA.content.forEach(c => {
+    const adRows = DATA.ads.filter(r => r.ad_id === c.ad_id);
+    if (!adRows.length) return;
+    if (!byFormat[c.format]) byFormat[c.format] = {spend:0,leads:0,clicks:0,impressions:0,count:0};
+    adRows.forEach(r => {
+      byFormat[c.format].spend+=r.spend; byFormat[c.format].leads+=r.leads;
+      byFormat[c.format].clicks+=r.clicks; byFormat[c.format].impressions+=r.impressions;
+    });
+    byFormat[c.format].count++;
+  });
+  const formats = Object.entries(byFormat).map(([f,d]) => ({
+    format:f, ...d,
+    ctr: d.impressions ? (d.clicks/d.impressions*100).toFixed(2) : 0,
+    cpl: d.leads ? Math.round(d.spend/d.leads) : 0,
+  })).sort((a,b) => b.ctr - a.ctr);
+
+  // Content pillar performance
+  const byPillar = {};
+  DATA.content.forEach(c => {
+    const adRows = DATA.ads.filter(r => r.ad_id === c.ad_id);
+    if (!adRows.length) return;
+    if (!byPillar[c.content_pillar]) byPillar[c.content_pillar] = {spend:0,leads:0,clicks:0,impressions:0};
+    adRows.forEach(r => {
+      byPillar[c.content_pillar].spend+=r.spend; byPillar[c.content_pillar].leads+=r.leads;
+      byPillar[c.content_pillar].clicks+=r.clicks; byPillar[c.content_pillar].impressions+=r.impressions;
+    });
+  });
+  const pillars = Object.entries(byPillar).map(([p,d]) => ({
+    pillar:p, ...d,
+    ctr: d.impressions ? (d.clicks/d.impressions*100).toFixed(2) : 0,
+    cpl: d.leads ? Math.round(d.spend/d.leads) : 0,
+  })).sort((a,b) => b.leads - a.leads);
+
+  // Frequency warnings
+  const freqWarn = ads.filter(r => r.frequency > 2.5);
+
+  // Best hook patterns
+  const hooks = DATA.content
+    .map(c => ({ hook: c.hook_text, pillar: c.content_pillar, adId: c.ad_id }))
+    .map(h => {
+      const metrics = DATA.ads.filter(r => r.ad_id === h.adId);
+      const ctr = metrics.length ? avgField(metrics,'ctr') : 0;
+      return { ...h, ctr };
+    })
+    .sort((a,b) => b.ctr - a.ctr)
+    .slice(0,5);
+
+  const bestFormat = formats[0] || {};
+  const bestPillar = pillars[0] || {};
+
+  document.getElementById('mainContent').innerHTML = `
+  <div class="insight-grid">
+    <div class="insight-card">
+      <div class="insight-icon">🎬</div>
+      <div class="insight-title">Format Terbaik</div>
+      <div class="insight-body">
+        <span class="insight-highlight">${bestFormat.format}</span> adalah format dengan CTR tertinggi
+        (<span class="insight-highlight">${bestFormat.ctr}%</span>).
+        ${bestFormat.leads ? `Menghasilkan <span class="insight-highlight">${bestFormat.leads} leads</span> dengan CPL ${fmtIDR(bestFormat.cpl)}.` : 'Fokuskan konten pada format ini.'}
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon">🎯</div>
+      <div class="insight-title">Content Pillar Paling Efisien</div>
+      <div class="insight-body">
+        Konten <span class="insight-highlight">${bestPillar.pillar}</span> menghasilkan leads paling banyak
+        (${bestPillar.leads} leads).
+        ${bestPillar.cpl ? `CPL: <span class="insight-highlight">${fmtIDR(bestPillar.cpl)}</span>.` : ''}
+        Perbanyak konten dengan angle ini.
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon">🔄</div>
+      <div class="insight-title">Frekuensi Check</div>
+      <div class="insight-body">
+        ${freqWarn.length
+          ? `<span class="insight-highlight" style="color:var(--red)">${freqWarn.length} iklan</span> sudah melebihi frekuensi 2.5 — tanda audiens mulai bosan. Saatnya refresh creative atau expand audience.`
+          : `<span class="insight-highlight" style="color:var(--green)">Semua iklan aman</span> — frekuensi di bawah threshold 2.5.`}
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon">📊</div>
+      <div class="insight-title">Format Breakdown</div>
+      <div class="insight-body">
+        ${formats.map(f => `<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>${f.format}</span><span style="color:var(--apricot);font-weight:700">${f.ctr}% CTR</span></div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  ${freqWarn.length ? `
+  <div class="section-head" style="margin-top:4px"><div class="section-title" style="color:var(--red)">⚠️ Iklan yang Perlu Direfresh</div></div>
+  ${freqWarn.map(r => `
+  <div class="warning-card">
+    <div class="warning-icon">🔔</div>
+    <div>
+      <div class="warning-title">${r.ad_name} — ${r.account_name}</div>
+      <div class="warning-body">Frekuensi: <strong>${r.frequency}</strong> · Spend: ${fmtIDR(r.spend)} · CTR: ${r.ctr}%<br>
+      Rekomenasi: pause, buat variasi hook baru, atau expand ke lookalike audience.</div>
+    </div>
+  </div>`).join('')}` : ''}
+
+  <div class="section-head" style="margin-top:16px">
+    <div class="section-title">🪝 Hook Terbaik (by CTR)</div>
+  </div>
+  <div class="table-card">
+    <table class="data-table">
+      <thead><tr><th>#</th><th>Hook Text</th><th>Pillar</th><th>CTR</th></tr></thead>
+      <tbody>
+        ${hooks.map((h,i) => `<tr>
+          <td><span class="rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">#${i+1}</span></td>
+          <td><div class="hook-text" style="background:transparent;padding:0;border:none;font-style:normal;font-size:12px">"${h.hook}"</div></td>
+          <td><span class="badge badge-pillar">${h.pillar}</span></td>
+          <td style="color:var(--apricot);font-weight:700">${h.ctr.toFixed(2)}%</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="chart-grid-2" style="margin-top:20px">
+    <div class="chart-card">
+      <div class="chart-title">CTR per Format</div>
+      <div class="chart-wrap"><canvas id="formatChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Leads per Content Pillar</div>
+      <div class="chart-wrap"><canvas id="pillarChart"></canvas></div>
+    </div>
+  </div>`;
+
+  const ctx1 = document.getElementById('formatChart').getContext('2d');
+  CHARTS.format = new Chart(ctx1, {
+    type: 'doughnut',
+    data: {
+      labels: formats.map(f=>f.format),
+      datasets: [{ data: formats.map(f=>f.ctr), backgroundColor: ['#FF8A3D','#B368FF','#6EE7D7','#FACC15'], borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color:'#FFF4E6', boxWidth:10, font:{size:11} } } }
+    }
+  });
+
+  const ctx2 = document.getElementById('pillarChart').getContext('2d');
+  CHARTS.pillar = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: pillars.map(p=>p.pillar),
+      datasets: [{ label:'Leads', data: pillars.map(p=>p.leads), backgroundColor:'#B368FF', borderRadius:6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid:{color:'#2E2840'}, ticks:{color:'#6B6480',font:{size:10}} },
+        y: { grid:{color:'#2E2840'}, ticks:{color:'#6B6480'} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+//  PAGE: CARA PAKAI
+// ═══════════════════════════════════════════
+function renderConfig() {
+  document.getElementById('mainContent').innerHTML = `
+  <div style="max-width:760px">
+
+    <div class="config-help">
+      <strong>📌 Dashboard ini pakai sistem CSV</strong> — data diambil langsung dari file CSV yang bisa diganti dengan
+      link Google Sheets agar update otomatis tanpa perlu upload ulang.
+    </div>
+
+    <div class="config-section">
+      <h3>📁 Opsi 1 — Pakai File Lokal (Offline)</h3>
+      <ol class="step-list">
+        <li>Download file <code>ads_performance.csv</code>, <code>content_library.csv</code>, dan <code>account_monthly.csv</code></li>
+        <li>Isi data aktual ke masing-masing file sesuai format kolom yang sudah ada</li>
+        <li>Taruh semua file di <strong>folder yang sama</strong> dengan file <code>meta-ads-dashboard.html</code> ini</li>
+        <li>Buka file HTML di browser — dashboard otomatis baca data dari CSV</li>
+        <li>Setiap update data: edit CSV → refresh browser. Selesai.</li>
+      </ol>
+    </div>
+
+    <div class="config-section">
+      <h3>☁️ Opsi 2 — Pakai Google Sheets (Auto-Update)</h3>
+      <ol class="step-list">
+        <li>Buat Google Sheets baru, buat 3 tab: <code>ads_performance</code>, <code>content_library</code>, <code>account_monthly</code></li>
+        <li>Copy header dan isi data ke masing-masing tab</li>
+        <li>Klik <strong>File → Share → Publish to web</strong></li>
+        <li>Pilih tab yang mau dipublish → format <strong>CSV</strong> → klik Publish</li>
+        <li>Copy link CSV yang muncul (contoh: <code>https://docs.google.com/spreadsheets/d/…/export?format=csv&gid=0</code>)</li>
+        <li>Buka file HTML ini dengan text editor, cari bagian <code>const CONFIG = {</code></li>
+        <li>Ganti nilai <code>adsUrl</code>, <code>contentUrl</code>, <code>monthlyUrl</code> dengan link CSV Google Sheets masing-masing</li>
+        <li>Save HTML → data langsung tarik dari Sheets setiap kali dashboard dibuka</li>
+      </ol>
+    </div>
+
+    <div class="config-section">
+      <h3>🖼️ Cara Tambah Gambar Iklan</h3>
+      <ol class="step-list">
+        <li>Upload gambar ke <strong>Google Drive</strong> atau storage publik manapun (Cloudinary, imgBB, dll)</li>
+        <li>Set permission: <strong>Anyone with the link can view</strong></li>
+        <li>Untuk Google Drive: ubah format link dari <code>drive.google.com/file/d/FILE_ID/view</code> menjadi <code>drive.google.com/uc?id=FILE_ID</code></li>
+        <li>Paste link tersebut di kolom <code>image_url</code> pada sheet <code>content_library</code></li>
+        <li>Gambar akan tampil otomatis di Creative Gallery dan Overview</li>
+      </ol>
+    </div>
+
+    <div class="config-section">
+      <h3>📊 Struktur Kolom Wajib</h3>
+      <div class="chart-card" style="padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--apricot);margin-bottom:10px">ads_performance.csv</div>
+        <div style="font-size:11px;color:var(--muted);line-height:2;font-family:monospace">
+          account_id · account_name · campaign_name · ad_set_name · ad_name · ad_id · date ·
+          spend · impressions · reach · clicks · ctr · cpc · cpm · leads · cpl · roas · frequency · objective · image_url · format · hook_text · content_pillar · visual_style
+        </div>
+      </div>
+      <div class="chart-card" style="padding:16px;margin-top:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--lilac);margin-bottom:10px">content_library.csv</div>
+        <div style="font-size:11px;color:var(--muted);line-height:2;font-family:monospace">
+          ad_id · account_name · creative_name · image_url · format · hook_text · caption_snippet · content_pillar · visual_style · date_created · created_by
+        </div>
+      </div>
+      <div class="chart-card" style="padding:16px;margin-top:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--aqua);margin-bottom:10px">account_monthly.csv</div>
+        <div style="font-size:11px;color:var(--muted);line-height:2;font-family:monospace">
+          account_name · month · reach · impressions · profile_visits · link_clicks · interactions · follows · ad_spend · total_posts · total_stories · total_reels
+        </div>
+      </div>
+    </div>
+
+    <div class="config-section">
+      <h3>💡 Tips Penggunaan</h3>
+      <div class="insight-grid" style="grid-template-columns:1fr 1fr">
+        <div class="insight-card">
+          <div class="insight-icon">📅</div>
+          <div class="insight-title">Update Mingguan</div>
+          <div class="insight-body">Export data dari Meta Ads Manager setiap Senin, paste ke Sheet <code>ads_performance</code>. Dashboard langsung update.</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon">🔗</div>
+          <div class="insight-title">Linking Ad ↔ Content</div>
+          <div class="insight-body">Kolom <code>ad_id</code> adalah jembatan antara Sheet 1 dan Sheet 2. Pastikan nilainya konsisten (contoh: AD001, AD002).</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon">👥</div>
+          <div class="insight-title">Multi-Akun</div>
+          <div class="insight-body">Semua akun masuk ke satu Sheet. Gunakan filter "Akun" di sidebar untuk lihat data per klien saja.</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon">📤</div>
+          <div class="insight-title">Share ke Klien</div>
+          <div class="insight-body">Jika mau share ke klien spesifik, filter akun mereka dulu → Ctrl+P → Save as PDF untuk laporan instan.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
+EOF
+echo "✅ Dashboard HTML selesai dibuat"

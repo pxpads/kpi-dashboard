@@ -41,6 +41,8 @@
     --green:   #1A7A3A;
     --yellow:  #B8860B;
     --shadow: 0 2px 12px rgba(0,0,0,.1);
+    --chart-grid: #D8D3CE;
+    --chart-tick: #3A3530;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -641,6 +643,15 @@ let CHARTS = {};
 let currentAccount = 'all';
 let currentPage = 'overview';
 
+// ─── Chart color helper (reads live CSS vars) ───
+function chartColors() {
+  const s = getComputedStyle(document.body);
+  return {
+    grid: s.getPropertyValue('--chart-grid').trim() || '#2E2840',
+    tick: s.getPropertyValue('--chart-tick').trim() || '#6B6480',
+  };
+}
+
 // ═══════════════════════════════════════════
 //  LOAD DATA
 // ═══════════════════════════════════════════
@@ -870,12 +881,46 @@ function renderOverview() {
   const topAdsContainer = document.getElementById('topAdsGrid');
   accounts.forEach(acc => {
     const accAds = ads.filter(r => r.account_name === acc);
-    const top = [...accAds].sort((a,b) => b.leads - a.leads)[0];
+    // Aggregate per ad_id for this account
+    const adMap = {};
+    accAds.forEach(r => {
+      if (!adMap[r.ad_id]) adMap[r.ad_id] = {...r, _rows:[]};
+      adMap[r.ad_id]._rows.push(r);
+    });
+    const adAgg = Object.values(adMap).map(r => {
+      const impr = r._rows.reduce((s,x)=>s+x.impressions,0);
+      const clk  = r._rows.reduce((s,x)=>s+x.clicks,0);
+      const spd  = r._rows.reduce((s,x)=>s+x.spend,0);
+      const lds  = r._rows.reduce((s,x)=>s+x.leads,0);
+      const roas = avgField(r._rows.filter(x=>x.roas>0),'roas');
+      const ctr  = impr ? clk/impr*100 : 0;
+      const cpm  = impr ? spd/impr*1000 : 0;
+      const freq = avgField(r._rows,'frequency');
+      let score  = ctr*10;
+      if (roas>0) score += Math.min(roas*5,30);
+      if (cpm>0)  score -= Math.min(cpm/5000,10);
+      if (freq>2.5) score -= 15;
+      if (lds>0) score += Math.min(lds*2,20);
+      return {...r, _ctr:ctr, _lds:lds, _roas:roas, _cpm:Math.round(cpm), _cpl:lds?Math.round(spd/lds):0, _freq:freq.toFixed(1), _score:Math.round(score), _obj:r.objective||''};
+    });
+    const top = adAgg.sort((a,b)=>b._score-a._score)[0];
     if (!top) return;
     const content = DATA.content.find(c => c.ad_id === top.ad_id) || {};
     const imgUrl = content.image_url || top.image_url || 'https://placehold.co/200x200/1F1B2A/6B6480?text=No+Image';
-    const score = top.ctr > 2.5 ? 'top' : top.ctr > 1.5 ? 'avg' : 'low';
-    const scoreLabel = top.ctr > 2.5 ? '🟢 Top Performer' : top.ctr > 1.5 ? '🟡 Average' : '🔴 Underperform';
+    const sc = top._score>=25?'top':top._score<10?'low':'avg';
+    const scoreLabel = sc==='top'?'🟢 Top Performer':sc==='low'?'🔴 Underperform':'🟡 Average';
+    const hasLeads = top._lds>0, hasRoas = top._roas>0;
+    const metricsHTML = hasLeads
+      ? `<div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${top._ctr.toFixed(2)}%</div><div class="metric-mini-lbl">CTR</div></div>
+         <div class="metric-mini"><div class="metric-mini-val">${top._lds}</div><div class="metric-mini-lbl">Leads</div></div>
+         <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(top._cpl)}</div><div class="metric-mini-lbl">CPL</div></div>`
+      : hasRoas
+      ? `<div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${top._ctr.toFixed(2)}%</div><div class="metric-mini-lbl">CTR</div></div>
+         <div class="metric-mini"><div class="metric-mini-val">${top._roas.toFixed(1)}x</div><div class="metric-mini-lbl">ROAS</div></div>
+         <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(top._cpm)}</div><div class="metric-mini-lbl">CPM</div></div>`
+      : `<div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${top._ctr.toFixed(2)}%</div><div class="metric-mini-lbl">CTR</div></div>
+         <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(top._cpm)}</div><div class="metric-mini-lbl">CPM</div></div>
+         <div class="metric-mini"><div class="metric-mini-val">${top._freq}</div><div class="metric-mini-lbl">Freq</div></div>`;
 
     topAdsContainer.innerHTML += `
     <div class="chart-card" style="display:flex;gap:16px;align-items:flex-start;padding:16px">
@@ -883,12 +928,8 @@ function renderOverview() {
       <div style="flex:1">
         <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">${acc}</div>
         <div style="font-size:13px;font-weight:700;margin-bottom:6px">${top.ad_name}</div>
-        <div class="perf-score ${score}"><span class="perf-label ${score}">${scoreLabel}</span></div>
-        <div class="metrics-mini" style="margin-top:8px">
-          <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${fmtPct(top.ctr)}</div><div class="metric-mini-lbl">CTR</div></div>
-          <div class="metric-mini"><div class="metric-mini-val">${fmtNum(top.leads)}</div><div class="metric-mini-lbl">Leads</div></div>
-          <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(Math.round(top.cpl))}</div><div class="metric-mini-lbl">CPL</div></div>
-        </div>
+        <div class="perf-score ${sc}"><span class="perf-label ${sc}">${scoreLabel}</span><span style="font-size:10px;color:var(--muted);margin-left:auto">Score: ${top._score}</span></div>
+        <div class="metrics-mini" style="margin-top:8px">${metricsHTML}</div>
       </div>
     </div>`;
   });
@@ -918,8 +959,8 @@ function renderOverview() {
         }
       },
       scales: {
-        x: { title: { display: true, text: 'Spend (ribu Rp)', color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' }, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' } },
-        y: { title: { display: true, text: 'Leads', color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' }, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480' } }
+        x: { title: { display: true, text: 'Spend (ribu Rp)', color: chartColors().tick }, grid: { color: chartColors().grid }, ticks: { color: chartColors().tick } },
+        y: { title: { display: true, text: 'Leads', color: chartColors().tick }, grid: { color: chartColors().grid }, ticks: { color: chartColors().tick } }
       }
     }
   });
@@ -1036,9 +1077,9 @@ function renderMonthly() {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { labels: { color: '#FFF4E6', boxWidth: 10, font: { size: 11 } } } },
         scales: {
-          x: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } } },
-          y: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } },
-               title: { display: !!yLabel, text: yLabel, color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } } }
+          x: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, font: { size: 10 } } },
+          y: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, font: { size: 10 } },
+               title: { display: !!yLabel, text: yLabel, color: chartColors().tick, font: { size: 10 } } }
         }
       }
     });
@@ -1083,19 +1124,60 @@ function renderGallery() {
     if (!rows.length) return null;
     const spend = sumField(rows,'spend'), leads = sumField(rows,'leads'),
           impr  = sumField(rows,'impressions'), clicks = sumField(rows,'clicks');
+    const ctr  = impr ? (clicks/impr*100) : 0;
+    const roas = avgField(rows.filter(r=>r.roas>0),'roas');
+    const cpm  = impr ? (spend/impr*1000) : 0;
+    const freq = avgField(rows,'frequency');
+    // Composite score: CTR (main) + ROAS bonus + CPM penalty + freq penalty
+    let score = ctr * 10;                          // CTR paling nentuin
+    if (roas > 0)  score += Math.min(roas * 5, 30); // ROAS bonus, max 30pt
+    if (cpm > 0)   score -= Math.min(cpm/5000, 10); // CPM penalty, max -10pt
+    if (freq > 2.5) score -= 15;                    // Fatigue penalty
+    if (leads > 0)  score += Math.min(leads * 2, 20); // Leads bonus jika ada
     return {
-      spend, leads,
-      ctr:  impr  ? (clicks/impr*100).toFixed(2) : 0,
+      spend, leads, ctr: ctr.toFixed(2), roas: roas.toFixed(2),
       cpl:  leads ? Math.round(spend/leads) : 0,
-      roas: avgField(rows.filter(r=>r.roas>0),'roas').toFixed(2),
+      cpm:  Math.round(cpm), freq: freq.toFixed(1),
+      score: Math.round(score),
+      objective: rows[0]?.objective || '',
     };
   }
 
   function scoreClass(m) {
     if (!m) return 'avg';
-    if (m.ctr > 2.5 || m.leads > 10) return 'top';
-    if (m.ctr < 1.0 && m.leads < 3)  return 'low';
+    if (m.score >= 25) return 'top';
+    if (m.score < 10)  return 'low';
     return 'avg';
+  }
+
+  // Metrics yang ditampilkan sesuai objective
+  function creativeMetrics(m) {
+    if (!m) return '<div style="font-size:11px;color:var(--muted);margin-top:6px">Belum ada data ads</div>';
+    const obj = (m.objective||'').toLowerCase();
+    const hasLeads = m.leads > 0;
+    const hasRoas  = m.roas > 0;
+    if (hasLeads) {
+      // Lead gen objective
+      return `<div class="metrics-mini">
+        <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${m.ctr}%</div><div class="metric-mini-lbl">CTR</div></div>
+        <div class="metric-mini"><div class="metric-mini-val">${m.leads}</div><div class="metric-mini-lbl">Leads</div></div>
+        <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(m.cpl)}</div><div class="metric-mini-lbl">CPL</div></div>
+      </div>`;
+    } else if (hasRoas) {
+      // Conversion / ecomm objective
+      return `<div class="metrics-mini">
+        <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${m.ctr}%</div><div class="metric-mini-lbl">CTR</div></div>
+        <div class="metric-mini"><div class="metric-mini-val">${m.roas}x</div><div class="metric-mini-lbl">ROAS</div></div>
+        <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(m.cpm)}</div><div class="metric-mini-lbl">CPM</div></div>
+      </div>`;
+    } else {
+      // Awareness / traffic objective
+      return `<div class="metrics-mini">
+        <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${m.ctr}%</div><div class="metric-mini-lbl">CTR</div></div>
+        <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(m.cpm)}</div><div class="metric-mini-lbl">CPM</div></div>
+        <div class="metric-mini"><div class="metric-mini-val">${m.freq}</div><div class="metric-mini-lbl">Freq</div></div>
+      </div>`;
+    }
   }
 
   function draw() {
@@ -1121,7 +1203,7 @@ function renderGallery() {
         <img class="creative-img" src="${c.image_url}" alt="${c.creative_name}"
              onerror="this.src='https://placehold.co/400x400/1F1B2A/6B6480?text=No+Image'">
         <div class="creative-body">
-          <div class="creative-name">${c.creative_name}</div>
+          <div class="creative-name">${c.creative_name || c.ad_name || c.ad_id || 'Unnamed'}</div>
           <div class="creative-account">${c.account_name}</div>
           <div class="badge-row">
             <span class="badge badge-format">${c.format}</span>
@@ -1131,12 +1213,7 @@ function renderGallery() {
             <span class="perf-label ${sc}">${scoreLabel}</span>
             <span style="font-size:10px;color:var(--muted)">${c.visual_style}</span>
           </div>
-          ${m ? `
-          <div class="metrics-mini">
-            <div class="metric-mini"><div class="metric-mini-val" style="color:var(--apricot)">${m.ctr}%</div><div class="metric-mini-lbl">CTR</div></div>
-            <div class="metric-mini"><div class="metric-mini-val">${m.leads}</div><div class="metric-mini-lbl">Leads</div></div>
-            <div class="metric-mini"><div class="metric-mini-val">${fmtIDR(m.cpl)}</div><div class="metric-mini-lbl">CPL</div></div>
-          </div>` : '<div style="font-size:11px;color:var(--muted);margin-top:6px">Belum ada data ads</div>'}
+          ${creativeMetrics(m)}
           <div class="hook-text">"${c.hook_text}"</div>
         </div>
       </div>`;
@@ -1354,8 +1431,8 @@ function renderAudience() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', font: { size: 10 } } },
-        y: { grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid') || getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840' }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--chart-tick') || getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480', callback: v => v+'%' } }
+        x: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, font: { size: 10 } } },
+        y: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, callback: v => v+'%' } }
       }
     }
   });
@@ -1522,8 +1599,8 @@ function renderLearning() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid:{color:getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840'}, ticks:{color:getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480',font:{size:10}} },
-        y: { grid:{color:getComputedStyle(document.body).getPropertyValue('--chart-grid').trim() || '#2E2840'}, ticks:{color:getComputedStyle(document.body).getPropertyValue('--chart-tick').trim() || '#6B6480'} }
+        x: { grid:{color:chartColors().grid}, ticks:{color:chartColors().tick,font:{size:10}} },
+        y: { grid:{color:chartColors().grid}, ticks:{color:chartColors().tick} }
       }
     }
   });

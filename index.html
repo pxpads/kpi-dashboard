@@ -407,6 +407,93 @@
     font-size: 11px; color: var(--aqua); font-family: monospace;
   }
 
+  /* ─── AUDIENCE LIBRARY ─── */
+  .aud-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 24px; }
+
+  .aud-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    transition: box-shadow .15s;
+  }
+  .aud-card:hover { box-shadow: var(--shadow); }
+
+  .aud-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  }
+  .aud-name { font-size: 13px; font-weight: 700; line-height: 1.4; flex: 1; }
+  .aud-account { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: 3px; }
+
+  .aud-body { padding: 12px 16px; }
+
+  .aud-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .aud-tag {
+    padding: 2px 9px; border-radius: 99px;
+    font-size: 10px; font-weight: 700; letter-spacing: .03em;
+  }
+  .tag-age      { background: rgba(255,138,61,.12); color: var(--apricot); }
+  .tag-gender   { background: rgba(179,104,255,.12); color: var(--lilac); }
+  .tag-location { background: rgba(13,158,142,.12); color: var(--aqua); }
+  .tag-interest { background: rgba(27,17,32,.07); color: var(--cream); border: 1px solid var(--border); }
+  .tag-custom   { background: rgba(179,104,255,.2); color: var(--lilac); border: 1px solid rgba(179,104,255,.3); }
+  .tag-adv      { background: rgba(250,204,21,.12); color: var(--yellow); }
+  .tag-placement{ background: rgba(255,92,92,.1); color: var(--red); }
+  .tag-off      { background: rgba(168,152,128,.1); color: var(--muted); }
+
+  .aud-metrics {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    padding: 10px 0 2px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .aud-metric { text-align: center; }
+  .aud-metric-val { font-size: 14px; font-weight: 800; }
+  .aud-metric-lbl { font-size: 9px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-top: 1px; }
+
+  .aud-footer {
+    padding: 8px 16px;
+    background: rgba(0,0,0,.02);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  body.dark .aud-footer { background: rgba(255,255,255,.02); }
+
+  .aud-score-bar { display: flex; align-items: center; gap: 6px; flex: 1; }
+  .aud-score-track { flex: 1; height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .aud-score-fill  { height: 100%; border-radius: 99px; transition: width .4s ease; }
+
+  /* Audience filter bar */
+  .aud-filterbar {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 18px;
+  }
+  .aud-sort-select {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--cream); padding: 5px 10px;
+    border-radius: var(--r); font-size: 12px; cursor: pointer; outline: none;
+  }
+  .aud-sort-select:focus { border-color: var(--apricot); }
+
+  /* Audience summary strip */
+  .aud-summary {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 10px;
+    margin-bottom: 20px;
+  }
+  .aud-summary-item {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 12px 14px;
+    text-align: center;
+  }
+  .aud-summary-val { font-size: 20px; font-weight: 800; }
+  .aud-summary-lbl { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+
+  @media (max-width: 900px) {
+    .aud-grid { grid-template-columns: 1fr; }
+    .aud-metrics { grid-template-columns: repeat(4,1fr); }
+  }
+
   /* ─── MISC ─── */
   .divider { height: 1px; background: var(--border); margin: 20px 0; }
   .empty { text-align: center; color: var(--muted); padding: 48px; font-size: 13px; }
@@ -1341,103 +1428,366 @@ function renderAds() {
 function renderAudience() {
   const ads = filteredAds();
 
-  // Parse audiences from ad_set_name
+  // ── Aggregate by ad_set_name (unique audience key) ──
   const byAudience = {};
   ads.forEach(r => {
     const key = r.ad_set_name || 'Unknown';
     if (!byAudience[key]) byAudience[key] = {
-      name: key, accounts: new Set(), spend:0, leads:0,
-      impressions:0, clicks:0, _rows:[]
+      name: key,
+      accounts: new Set(),
+      objectives: new Set(),
+      spend:0, leads:0, impressions:0, clicks:0, roas_sum:0, roas_count:0,
+      _rows:[],
+      // Extra fields — taken from first row (should be consistent per ad set)
+      age_min:     r.age_min     || '',
+      age_max:     r.age_max     || '',
+      gender:      r.gender      || '',
+      location:    r.location    || '',
+      interests:   r.interests   || '',
+      behaviors:   r.behaviors   || '',
+      custom_audience: r.custom_audience || '',
+      advantage_plus:  r.advantage_plus  || '',
+      placement:   r.placement   || '',
     };
     byAudience[key].accounts.add(r.account_name);
+    byAudience[key].objectives.add(r.objective || '');
     byAudience[key].spend       += r.spend;
     byAudience[key].leads       += r.leads;
     byAudience[key].impressions += r.impressions;
     byAudience[key].clicks      += r.clicks;
+    if (+r.roas > 0) { byAudience[key].roas_sum += +r.roas; byAudience[key].roas_count++; }
     byAudience[key]._rows.push(r);
+    // Update fields from latest row if still empty
+    if (!byAudience[key].age_min    && r.age_min)    byAudience[key].age_min    = r.age_min;
+    if (!byAudience[key].age_max    && r.age_max)    byAudience[key].age_max    = r.age_max;
+    if (!byAudience[key].gender     && r.gender)     byAudience[key].gender     = r.gender;
+    if (!byAudience[key].location   && r.location)   byAudience[key].location   = r.location;
+    if (!byAudience[key].interests  && r.interests)  byAudience[key].interests  = r.interests;
+    if (!byAudience[key].behaviors  && r.behaviors)  byAudience[key].behaviors  = r.behaviors;
+    if (!byAudience[key].custom_audience && r.custom_audience) byAudience[key].custom_audience = r.custom_audience;
+    if (!byAudience[key].advantage_plus  && r.advantage_plus)  byAudience[key].advantage_plus  = r.advantage_plus;
+    if (!byAudience[key].placement  && r.placement)  byAudience[key].placement  = r.placement;
   });
 
-  const audiences = Object.values(byAudience).map(a => ({
-    ...a,
-    ctr: a.impressions ? (a.clicks/a.impressions*100) : 0,
-    cpl: a.leads ? a.spend/a.leads : 0,
-    accounts: [...a.accounts],
-  })).sort((a,b) => {
-    if (!a.leads && !b.leads) return b.ctr - a.ctr;
-    return b.leads - a.leads;
+  let audiences = Object.values(byAudience).map(a => {
+    const ctr  = a.impressions ? (a.clicks/a.impressions*100) : 0;
+    const cpl  = a.leads ? a.spend/a.leads : 0;
+    const cpm  = a.impressions ? (a.spend/a.impressions*1000) : 0;
+    const roas = a.roas_count ? (a.roas_sum/a.roas_count) : 0;
+    const freq = avgField(a._rows, 'frequency');
+    // Composite score
+    let score = ctr * 10;
+    if (roas > 0) score += Math.min(roas*5, 30);
+    if (cpm > 0)  score -= Math.min(cpm/5000, 10);
+    if (freq > 2.5) score -= 15;
+    if (a.leads > 0) score += Math.min(a.leads*2, 20);
+    return {
+      ...a,
+      accounts: [...a.accounts],
+      objectives: [...a.objectives].filter(Boolean),
+      ctr, cpl, cpm, roas, freq,
+      score: Math.round(score),
+    };
   });
 
-  function verdictOf(a) {
-    if (a.leads > 10 || a.ctr > 2.5) return {cls:'proven', label:'✅ Proven'};
-    if (a.leads > 0  || a.ctr > 1.5) return {cls:'testing', label:'⚡ Testing'};
-    return {cls:'weak', label:'❌ Weak'};
+  // ── Sort state ──
+  let sortBy = 'score';
+
+  function sortAudiences(list, by) {
+    return [...list].sort((a,b) => {
+      if (by==='ctr')   return b.ctr   - a.ctr;
+      if (by==='cpl')   return (a.cpl||999999) - (b.cpl||999999);
+      if (by==='spend') return b.spend - a.spend;
+      if (by==='leads') return b.leads - a.leads;
+      return b.score - a.score; // default
+    });
   }
 
-  const rows = audiences.map((a, i) => {
-    const v = verdictOf(a);
-    const rankCls = i===0?'gold':i===1?'silver':i===2?'bronze':'';
-    return `<tr>
-      <td><span class="rank ${rankCls}">#${i+1}</span></td>
-      <td>
-        <div style="font-weight:600;font-size:12px">${a.name}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">${a.accounts.join(', ')}</div>
-      </td>
-      <td><span class="verdict-pill verdict-${v.cls}">${v.label}</span></td>
-      <td style="color:var(--apricot);font-weight:700">${a.ctr.toFixed(2)}%</td>
-      <td>${fmtNum(a.leads)}</td>
-      <td>${a.leads ? fmtIDR(Math.round(a.cpl)) : '—'}</td>
-      <td>${fmtIDR(a.spend)}</td>
-      <td>${a.accounts.length}</td>
-    </tr>`;
-  }).join('');
+  function verdictOf(a) {
+    if (a.score >= 25) return {cls:'proven',  label:'✅ Proven'};
+    if (a.score >= 10) return {cls:'testing', label:'⚡ Testing'};
+    return               {cls:'weak',    label:'❌ Weak'};
+  }
 
-  // Audience bar chart — top 5 by CTR
-  const top5 = [...audiences].sort((a,b) => b.ctr - a.ctr).slice(0,5);
+  function scoreColor(s) {
+    if (s >= 25) return 'var(--green)';
+    if (s >= 10) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  // ── Build audience card HTML ──
+  function buildCard(a, i) {
+    const v = verdictOf(a);
+    const rankLabel = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    const advPlus = (a.advantage_plus||'').toLowerCase();
+    const advOn   = advPlus === 'on' || advPlus === 'yes' || advPlus === 'true' || advPlus === '1';
+    const advOff  = advPlus === 'off'|| advPlus === 'no'  || advPlus === 'false'|| advPlus === '0';
+
+    // Age range display
+    const ageText = a.age_min && a.age_max ? `${a.age_min}–${a.age_max}`
+                  : a.age_min ? `${a.age_min}+`
+                  : a.age_max ? `≤${a.age_max}` : '';
+
+    // Gender display
+    const genderMap = { all:'All Gender', male:'Male', female:'Female', m:'Male', f:'Female',
+                        'laki-laki':'Male', 'perempuan':'Female', 'semua':'All Gender' };
+    const genderText = genderMap[(a.gender||'').toLowerCase()] || a.gender || '';
+
+    // Interests (comma-separated → individual tags)
+    const interestTags = a.interests
+      ? a.interests.split(',').map(s=>s.trim()).filter(Boolean)
+        .map(t=>`<span class="aud-tag tag-interest">${t}</span>`).join('')
+      : '';
+    const behaviorTags = a.behaviors
+      ? a.behaviors.split(',').map(s=>s.trim()).filter(Boolean)
+        .map(t=>`<span class="aud-tag tag-interest" style="border-style:dashed">${t}</span>`).join('')
+      : '';
+    const customTags = a.custom_audience
+      ? a.custom_audience.split(',').map(s=>s.trim()).filter(Boolean)
+        .map(t=>`<span class="aud-tag tag-custom">👥 ${t}</span>`).join('')
+      : '';
+    const placementTags = a.placement
+      ? a.placement.split(',').map(s=>s.trim()).filter(Boolean)
+        .map(t=>`<span class="aud-tag tag-placement">📍 ${t}</span>`).join('')
+      : '';
+
+    const scoreBarW = Math.min(Math.max((a.score/50)*100, 4), 100).toFixed(0);
+
+    const hasLeads = a.leads > 0;
+    const hasRoas  = a.roas  > 0;
+
+    return `
+    <div class="aud-card">
+      <div class="aud-header">
+        <div>
+          <div class="aud-name">${rankLabel ? rankLabel+' ' : ''}${a.name}</div>
+          <div class="aud-account">${a.accounts.join(' · ')}</div>
+        </div>
+        <span class="verdict-pill verdict-${v.cls}" style="flex-shrink:0;margin-top:2px">${v.label}</span>
+      </div>
+      <div class="aud-body">
+
+        <!-- Demographics row -->
+        <div class="aud-tags" style="margin-bottom:8px">
+          ${ageText   ? `<span class="aud-tag tag-age">🎂 ${ageText}</span>` : ''}
+          ${genderText? `<span class="aud-tag tag-gender">⚧ ${genderText}</span>` : ''}
+          ${a.location? a.location.split(',').map(s=>s.trim()).filter(Boolean).map(l=>`<span class="aud-tag tag-location">📌 ${l}</span>`).join('') : ''}
+        </div>
+
+        <!-- Interests & Behaviors -->
+        ${interestTags || behaviorTags ? `
+        <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px">Interest & Behaviour</div>
+        <div class="aud-tags">${interestTags}${behaviorTags}</div>` : ''}
+
+        <!-- Custom Audience -->
+        ${customTags ? `
+        <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;margin-top:6px">Custom Audience</div>
+        <div class="aud-tags">${customTags}</div>` : ''}
+
+        <!-- Advantage+ & Placement -->
+        <div class="aud-tags" style="margin-top:8px">
+          ${advOn  ? `<span class="aud-tag tag-adv">⚡ Advantage+ ON</span>` : ''}
+          ${advOff ? `<span class="aud-tag tag-off">Advantage+ OFF</span>` : ''}
+          ${!advOn && !advOff && a.advantage_plus ? `<span class="aud-tag tag-off">A+: ${a.advantage_plus}</span>` : ''}
+          ${placementTags}
+        </div>
+
+        <!-- Metrics -->
+        <div class="aud-metrics">
+          <div class="aud-metric">
+            <div class="aud-metric-val" style="color:var(--apricot)">${a.ctr.toFixed(2)}%</div>
+            <div class="aud-metric-lbl">CTR</div>
+          </div>
+          ${hasLeads ? `
+          <div class="aud-metric">
+            <div class="aud-metric-val">${fmtNum(a.leads)}</div>
+            <div class="aud-metric-lbl">Leads</div>
+          </div>
+          <div class="aud-metric">
+            <div class="aud-metric-val">${fmtIDR(Math.round(a.cpl))}</div>
+            <div class="aud-metric-lbl">CPL</div>
+          </div>` : hasRoas ? `
+          <div class="aud-metric">
+            <div class="aud-metric-val">${a.roas.toFixed(1)}x</div>
+            <div class="aud-metric-lbl">ROAS</div>
+          </div>
+          <div class="aud-metric">
+            <div class="aud-metric-val">${fmtIDR(Math.round(a.cpm))}</div>
+            <div class="aud-metric-lbl">CPM</div>
+          </div>` : `
+          <div class="aud-metric">
+            <div class="aud-metric-val">${fmtIDR(Math.round(a.cpm))}</div>
+            <div class="aud-metric-lbl">CPM</div>
+          </div>
+          <div class="aud-metric">
+            <div class="aud-metric-val">${a.freq.toFixed(1)}</div>
+            <div class="aud-metric-lbl">Freq</div>
+          </div>`}
+          <div class="aud-metric">
+            <div class="aud-metric-val">${fmtIDR(a.spend)}</div>
+            <div class="aud-metric-lbl">Spend</div>
+          </div>
+        </div>
+      </div>
+      <div class="aud-footer">
+        <div class="aud-score-bar">
+          <span style="font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap">Score</span>
+          <div class="aud-score-track">
+            <div class="aud-score-fill" style="width:${scoreBarW}%;background:${scoreColor(a.score)}"></div>
+          </div>
+          <span style="font-size:12px;font-weight:800;color:${scoreColor(a.score)};min-width:28px">${a.score}</span>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;margin-left:10px">
+          ${a.objectives.map(o => `<span class="tag" style="font-size:9px">${o.replace('_',' ')}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function draw(sortKey) {
+    const sorted = sortAudiences(audiences, sortKey);
+    document.getElementById('audGrid').innerHTML = sorted.map((a,i) => buildCard(a,i)).join('');
+    // Update bar chart
+    const top5 = sorted.slice(0,5);
+    if (CHARTS.audienceBar) {
+      CHARTS.audienceBar.data.labels   = top5.map(a => a.name.length>28 ? a.name.slice(0,26)+'…' : a.name);
+      CHARTS.audienceBar.data.datasets[0].data = top5.map(a =>
+        sortKey==='ctr'   ? a.ctr.toFixed(2) :
+        sortKey==='leads' ? a.leads :
+        sortKey==='spend' ? (a.spend/1000).toFixed(0) : a.score
+      );
+      CHARTS.audienceBar.options.scales.y.ticks.callback = sortKey==='ctr' ? v=>v+'%' : sortKey==='spend' ? v=>'Rp'+v+'rb' : v=>v;
+      CHARTS.audienceBar.update();
+    }
+  }
+
+  // ── Summary stats ──
+  const totalAud   = audiences.length;
+  const provenAud  = audiences.filter(a => a.score >= 25).length;
+  const topCTR     = audiences.length ? Math.max(...audiences.map(a=>a.ctr)).toFixed(2) : 0;
+  const totalSpend = sumField(ads, 'spend');
+  const avgScore   = audiences.length ? Math.round(audiences.reduce((s,a)=>s+a.score,0)/audiences.length) : 0;
 
   document.getElementById('mainContent').innerHTML = `
-  <div class="chart-card">
-    <div class="chart-title">Top 5 Audience — CTR</div>
-    <div class="chart-sub">Audiens dengan click-through rate tertinggi</div>
+  <!-- Summary strip -->
+  <div class="aud-summary">
+    <div class="aud-summary-item">
+      <div class="aud-summary-val" style="color:var(--apricot)">${totalAud}</div>
+      <div class="aud-summary-lbl">Total Audience</div>
+    </div>
+    <div class="aud-summary-item">
+      <div class="aud-summary-val" style="color:var(--green)">${provenAud}</div>
+      <div class="aud-summary-lbl">Proven</div>
+    </div>
+    <div class="aud-summary-item">
+      <div class="aud-summary-val" style="color:var(--apricot)">${topCTR}%</div>
+      <div class="aud-summary-lbl">Best CTR</div>
+    </div>
+    <div class="aud-summary-item">
+      <div class="aud-summary-val">${avgScore}</div>
+      <div class="aud-summary-lbl">Avg Score</div>
+    </div>
+    <div class="aud-summary-item">
+      <div class="aud-summary-val">${fmtIDR(totalSpend)}</div>
+      <div class="aud-summary-lbl">Total Spend</div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="chart-card" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="chart-title">Top 5 Audience</div>
+      <select class="aud-sort-select" id="chartMetricSel" onchange="window._audSort(this.value)">
+        <option value="score">Composite Score</option>
+        <option value="ctr">CTR</option>
+        <option value="leads">Leads</option>
+        <option value="spend">Spend</option>
+      </select>
+    </div>
+    <div class="chart-sub">Sorted by metric yang dipilih</div>
     <div class="chart-wrap"><canvas id="audienceBar"></canvas></div>
   </div>
 
-  <div class="table-card">
-    <div class="table-head">
-      <div class="section-title">Audience Library</div>
-      <div class="section-sub" style="font-size:12px;color:var(--muted);margin-top:2px">Semua audiens yang pernah dijalankan di semua akun</div>
-    </div>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>#</th><th>Audience</th><th>Verdict</th><th>CTR</th>
-          <th>Leads</th><th>CPL</th><th>Total Spend</th><th>Akun</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>`;
+  <!-- Filter + Sort bar -->
+  <div class="aud-filterbar">
+    <span style="font-size:12px;color:var(--muted)">Sort:</span>
+    <button class="filter-btn active" onclick="window._audSort('score',this)">Score</button>
+    <button class="filter-btn" onclick="window._audSort('ctr',this)">CTR</button>
+    <button class="filter-btn" onclick="window._audSort('leads',this)">Leads</button>
+    <button class="filter-btn" onclick="window._audSort('cpl',this)">CPL</button>
+    <button class="filter-btn" onclick="window._audSort('spend',this)">Spend</button>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+    <span style="font-size:12px;color:var(--muted)">Filter:</span>
+    <button class="filter-btn active" onclick="window._audFilter('all',this)">Semua</button>
+    <button class="filter-btn" onclick="window._audFilter('proven',this)">✅ Proven</button>
+    <button class="filter-btn" onclick="window._audFilter('testing',this)">⚡ Testing</button>
+    <button class="filter-btn" onclick="window._audFilter('weak',this)">❌ Weak</button>
+  </div>
 
+  <!-- Cards grid -->
+  <div class="aud-grid" id="audGrid"></div>`;
+
+  // Init chart
   const ctx = document.getElementById('audienceBar').getContext('2d');
   CHARTS.audienceBar = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: top5.map(a => a.name.length>30 ? a.name.slice(0,28)+'…' : a.name),
+      labels: [],
       datasets: [{
-        label: 'CTR (%)',
-        data: top5.map(a => a.ctr.toFixed(2)),
+        data: [],
         backgroundColor: ['#FF8A3D','#B368FF','#6EE7D7','#A855F7','#0D9E8E'],
         borderRadius: 6,
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, font: { size: 10 } } },
-        y: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, callback: v => v+'%' } }
+        y: { grid: { color: chartColors().grid }, ticks: { color: chartColors().tick, font: { size: 11 } } }
       }
     }
   });
+
+  let _currentFilter = 'all';
+  let _currentSort   = 'score';
+
+  window._audSort = (key, btn) => {
+    _currentSort = key;
+    if (btn) {
+      btn.closest('.aud-filterbar').querySelectorAll('[onclick*="_audSort"]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    // Sync chart metric select
+    const sel = document.getElementById('chartMetricSel');
+    if (sel && ['score','ctr','leads','spend'].includes(key)) sel.value = key;
+    const filtered = _currentFilter === 'all' ? audiences : audiences.filter(a => {
+      const v = verdictOf(a);
+      return v.cls === _currentFilter;
+    });
+    const sorted = sortAudiences(filtered, key);
+    document.getElementById('audGrid').innerHTML = sorted.map((a,i) => buildCard(a,i)).join('');
+    // Update chart
+    const top5 = sortAudiences(audiences, key).slice(0,5);
+    CHARTS.audienceBar.data.labels = top5.map(a => a.name.length>28 ? a.name.slice(0,26)+'…' : a.name);
+    CHARTS.audienceBar.data.datasets[0].data = top5.map(a =>
+      key==='ctr'?a.ctr.toFixed(2):key==='leads'?a.leads:key==='spend'?(a.spend/1000).toFixed(0):a.score);
+    CHARTS.audienceBar.options.scales.x.ticks.callback = key==='ctr'?v=>v+'%':key==='spend'?v=>'Rp'+v+'rb':v=>v;
+    CHARTS.audienceBar.update();
+  };
+
+  window._audFilter = (verdict, btn) => {
+    _currentFilter = verdict;
+    if (btn) {
+      btn.closest('.aud-filterbar').querySelectorAll('[onclick*="_audFilter"]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    const filtered = verdict === 'all' ? audiences : audiences.filter(a => verdictOf(a).cls === verdict);
+    const sorted   = sortAudiences(filtered, _currentSort);
+    document.getElementById('audGrid').innerHTML = sorted.map((a,i) => buildCard(a,i)).join('');
+  };
+
+  draw('score');
 }
 
 // ═══════════════════════════════════════════
@@ -1662,7 +2012,9 @@ function renderConfig() {
         <div style="font-size:12px;font-weight:700;color:var(--apricot);margin-bottom:10px">ads_performance.csv</div>
         <div style="font-size:11px;color:var(--muted);line-height:2;font-family:monospace">
           account_id · account_name · campaign_name · ad_set_name · ad_name · ad_id · date ·
-          spend · impressions · reach · clicks · ctr · cpc · cpm · leads · cpl · roas · frequency · objective · image_url · format · hook_text · content_pillar · visual_style
+          spend · impressions · reach · clicks · ctr · cpc · cpm · leads · cpl · roas · frequency · objective ·
+          image_url · format · hook_text · content_pillar · visual_style ·
+          <strong style="color:var(--apricot)">age_min · age_max · gender · location · interests · behaviors · custom_audience · advantage_plus · placement</strong>
         </div>
       </div>
       <div class="chart-card" style="padding:16px;margin-top:12px">
